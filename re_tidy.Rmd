@@ -1,30 +1,106 @@
 ---
-title: "Untitled"
+title: "Report_Chapter3"
 author: "Chiara Huwiler"
 date: "2023-03-06"
 output: html_document
 ---
 
-```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
+## AGDS Report
+
+This document includes the solutions to all of the Chapter 3 Exercises from the Applied Geodata Science course.
+
+This exercises are based on the following database: Groenigen, Kees Jan van, Xuan Qi, Craig W. Osenberg, Yiqi Luo, and Bruce A. Hungate. "Faster Decomposition Under Increased Atmospheric CO2 Limits Soil Carbon Storage." Science 344, no. 6183 (May 2, 2014): 508--9. <https://doi.org/10.1126/science.1249534>.
+
+The data is imported as a tibble
+
+```{r}
+df_full <- readr::read_csv2("./df_full.csv", col_names = TRUE)
+
+knitr::kable(df_full)
 ```
 
-## R Markdown
+# Excercise 2
 
-This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+Data aggregation per experiment and calculation of the log-response ratio
 
-When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+RR = ln (xelevated/xambient)
 
-```{r cars}
-summary(cars)
+For that calculate for each Experiment the means for each Column.
+
+```{r}
+names(Database1)
+
+df_exp <- df_full %>%
+  group_by(Experiment) %>%
+  summarise(ambient_mean = mean(ambient_mean),
+            elevate_mean = mean(elevate_mean))
+
+knitr::kable(df_exp)
+
 ```
 
-## Including Plots
+Calculate the log response ratio of every Experiment from the new Database mean_eachexperiment
 
-You can also embed plots, for example:
+```{r}
+df_lrr <- df_exp %>%
+  reframe ( LRR <- log(elevate_mean/ambient_mean))
 
-```{r pressure, echo=FALSE}
-plot(pressure)
+print(df_lrr)
+
+knitr::kable(df_lrr)
 ```
 
-Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
+# Exercise 3
+
+Data aggregation across all experiments for different years (early, mid- and late phase); Calculation of the log-response ratio for each phase 1. Definition of the Time period 2. Calculation of mean 3. Calculation of the log-response ratio
+
+**Early Phase**
+
+```{r}
+early_phase <- df_full [df_full[,"Time"] >= 0 & df_full[,"Time"]<= 3,] |>
+mutate(Time = as.factor(Time))  |>
+
+
+summarise(ambient_mean = mean(ambient_mean),
+            elevate_mean = mean(elevate_mean)) |>
+
+mutate (ep_mean <- log(elevate_mean/ambient_mean))
+
+knitr::kable(early_phase)
+```
+
+Result = -0.04652934
+
+**Midphase**
+
+```{r}
+
+midphase <- df_full [df_full[,"Time"] >= 3 & df_full[,"Time"]<= 6,] |>
+mutate(Time = as.factor(Time))  |>
+
+
+summarise(ambient_mean = mean(ambient_mean),
+            elevate_mean = mean(elevate_mean)) |>
+
+mutate (ep_mean <- log(elevate_mean/ambient_mean))
+
+knitr::kable(midphase)
+```
+
+Result = 0.02250699
+
+**Late phase**
+
+```{r}
+late_phase <- df_full [df_full[,"Time"] >= 6,] |>
+mutate(Time = as.factor(Time))  |>
+
+summarise(ambient_mean = mean(ambient_mean),
+            elevate_mean = mean(elevate_mean)) |>
+
+mutate (ep_mean <- log(elevate_mean/ambient_mean))
+
+knitr::kable(late_phase)
+```
+
+Result = -0.01622216
