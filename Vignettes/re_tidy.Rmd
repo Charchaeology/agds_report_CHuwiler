@@ -1,0 +1,115 @@
+---
+title: "Report_Chapter3"
+author: "Chiara Huwiler"
+date: "2023-03-06"
+output: html_document
+---
+
+```{r}
+# Setting up
+library(tidyverse)
+```
+
+## AGDS 3.5 Report Exercises
+
+This document includes the solutions to all of the Chapter 3 Exercises from the Applied Geodata Science course.
+
+This exercises are based on the following database: Groenigen, Kees Jan van, Xuan Qi, Craig W. Osenberg, Yiqi Luo, and Bruce A. Hungate. "Faster Decomposition Under Increased Atmospheric CO2 Limits Soil Carbon Storage." Science 344, no. 6183 (May 2, 2014): 508--9. <https://doi.org/10.1126/science.1249534>.
+
+The data is imported as a tibble
+
+```{r}
+# Reading and defining the dataframe 
+df_full <- readr::read_csv2("./df_full.csv", col_names = TRUE)
+
+```
+
+# Excercise 2
+
+Data aggregation per experiment and calculation of the log-response ratio
+
+RR = ln (xelevated/xambient)
+
+For that calculate for each Experiment the means for each Column.
+
+```{r}
+# Calculation the mean values
+df_exp <- df_full |>
+  group_by(Experiment) |>
+  summarise (ambient_mean = mean(ambient_mean),
+            elevate_mean = mean(elevate_mean))
+
+# Displaying the result
+knitr::kable(df_exp)
+
+```
+
+Calculate the log response ratio of every Experiment from the new Database mean_eachexperiment
+
+```{r}
+# Calculation the log response ratio
+df_lrr <- df_exp |>
+  reframe ( LRR <- log(elevate_mean/ambient_mean))
+
+
+# Displaying the result
+knitr::kable(df_lrr)
+```
+
+# Exercise 3
+
+Data aggregation across all experiments for different years (early, mid- and late phase); Calculation of the log-response ratio for each phase.
+
+**Early Phase**
+
+```{r}
+# Defining the time period
+early_phase <- df_full [df_full[,"Time"] >= 0 & df_full[,"Time"]<= 3,] |>
+mutate(Time = as.factor(Time))  |>
+
+# Calculating means of ambient_mean and elevate_mean
+summarise(ambient_mean = mean(ambient_mean),
+            elevate_mean = mean(elevate_mean)) |>
+
+# Calculating log-response ratio
+mutate (ep_mean <- log(elevate_mean/ambient_mean))
+
+# Displaying the result
+knitr::kable(early_phase)
+```
+
+**Midphase**
+
+```{r}
+# Defining the time period
+midphase <- df_full [df_full[,"Time"] >= 3 & df_full[,"Time"]<= 6,] |>
+mutate(Time = as.factor(Time))  |>
+
+# Calculating means of ambient_mean and elevate_mean
+summarise(ambient_mean = mean(ambient_mean),
+            elevate_mean = mean(elevate_mean)) |>
+
+# Calculating log-response ratio
+mutate (ep_mean <- log(elevate_mean/ambient_mean))
+
+# Displaying the result
+knitr::kable(midphase)
+```
+
+**Late phase**
+
+```{r}
+# Defining the time period
+late_phase <- df_full [df_full[,"Time"] >= 6,] |>
+mutate(Time = as.factor(Time))  |>
+
+# Calculating means of ambient_mean and elevate_mean
+summarise(ambient_mean = mean(ambient_mean),
+            elevate_mean = mean(elevate_mean)) |>
+
+# Calculating log-response ratio
+mutate (ep_mean <- log(elevate_mean/ambient_mean))
+
+# Displaying the result
+knitr::kable(late_phase)
+```
