@@ -13,7 +13,9 @@ library(lattice)
 library(dplyr)
 ```
 
-# How well is a model generalisable to a new site?
+# Report Exercises 10
+
+## How well is a model generalisable to a new site?
 
 ### Setting aside 20% of the data of each site for testing.
 
