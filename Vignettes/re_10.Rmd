@@ -1,0 +1,495 @@
+---
+title: "re_10"
+author: "Chiara Huwiler"
+date: "2023-05-08"
+output: html_document
+---
+
+```{r}
+# Setup
+library(tidyverse)
+library(recipes)
+library(lattice)
+library(dplyr)
+```
+
+# How well is a model generalisable to a new site?
+
+### Setting aside 20% of the data of each site for testing.
+
+Data from Davos
+
+```{r}
+daily_fluxes_davos <- readr::read_csv("./data/FLX_CH-Dav_FLUXNET2015_FULLSET_DD_1997-2014_1-3.csv") |>  
+  
+  # select only the variables we are interested in
+  dplyr::select(TIMESTAMP,
+                GPP_NT_VUT_REF,    # the target
+                ends_with("_QC"),  # quality control info
+                ends_with("_F"),   # includes all all meteorological covariates
+                -contains("JSB")   # weird useless variable
+                ) |>
+
+  # convert to a nice date object
+  dplyr::mutate(TIMESTAMP = ymd(TIMESTAMP)) |>
+
+  # set all -9999 to NA
+  mutate(across(where(is.numeric), ~na_if(., -9999))) |> 
+
+  # retain only data based on >=80% good-quality measurements
+  # overwrite bad data with NA (not dropping rows)
+  dplyr::mutate(GPP_NT_VUT_REF = ifelse(NEE_VUT_REF_QC < 0.8, NA, GPP_NT_VUT_REF),
+                TA_F           = ifelse(TA_F_QC        < 0.8, NA, TA_F),
+                SW_IN_F        = ifelse(SW_IN_F_QC     < 0.8, NA, SW_IN_F),
+                LW_IN_F        = ifelse(LW_IN_F_QC     < 0.8, NA, LW_IN_F),
+                VPD_F          = ifelse(VPD_F_QC       < 0.8, NA, VPD_F),
+                PA_F           = ifelse(PA_F_QC        < 0.8, NA, PA_F),
+                P_F            = ifelse(P_F_QC         < 0.8, NA, P_F),
+                WS_F           = ifelse(WS_F_QC        < 0.8, NA, WS_F)) |> 
+
+  # drop QC variables (no longer needed)
+  dplyr::select(-ends_with("_QC"))
+
+# Data splitting
+set.seed(123)  # for reproducibility
+split <- rsample::initial_split(daily_fluxes_davos, prop = 0.8, strata = "VPD_F") # 80% for training, 20% for testing
+
+daily_fluxes_train_dav <- rsample::training(split)
+daily_fluxes_test_dav <- rsample::testing(split)
+```
+
+Data Laegern
+
+```{r}
+# Read in data for Laegern site
+daily_fluxes_laegern <- readr::read_csv("./data/FLX_CH-Lae_FLUXNET2015_FULLSET_DD_2004-2014_1-4.csv") |>
+  # select only the variables we are interested in
+  dplyr::select(TIMESTAMP,
+                GPP_NT_VUT_REF,    # the target
+                ends_with("_QC"),  # quality control info
+                ends_with("_F"),   # includes all meteorological covariates
+                -contains("JSB")   # weird useless variable
+  ) |>
+  # convert to a nice date object
+  dplyr::mutate(TIMESTAMP = ymd(TIMESTAMP))|>
+  # set all -9999 to NA
+  mutate(across(where(is.numeric), ~na_if(., -9999))) |>
+  # retain only data based on >=80% good-quality measurements
+  # overwrite bad data with NA (not dropping rows)
+  dplyr::mutate(GPP_NT_VUT_REF = ifelse(NEE_VUT_REF_QC < 0.8, NA, GPP_NT_VUT_REF),
+                TA_F           = ifelse(TA_F_QC        < 0.8, NA, TA_F),
+                SW_IN_F        = ifelse(SW_IN_F_QC     < 0.8, NA, SW_IN_F),
+                LW_IN_F        = ifelse(LW_IN_F_QC     < 0.8, NA, LW_IN_F),
+                VPD_F          = ifelse(VPD_F_QC       < 0.8, NA, VPD_F),
+                PA_F           = ifelse(PA_F_QC        < 0.8, NA, PA_F),
+                P_F            = ifelse(P_F_QC         < 0.8, NA, P_F),
+                WS_F           = ifelse(WS_F_QC        < 0.8, NA, WS_F)) |> 
+# drop QC variables (no longer needed)
+  dplyr::select(-ends_with("_QC"))
+
+# Data splitting
+set.seed(123)  # for reproducibility
+split <- rsample::initial_split(daily_fluxes_laegern, prop = 0.8, strata = "VPD_F")
+daily_fluxes_train_lae <- rsample::training(split)
+daily_fluxes_test_lae <- rsample::testing(split)
+```
+
+# Train an model from one site and predict to another site.
+
+Compare within-site predictions and across-site predictions on the test set for both sites, considering different metrics. For across-site predictions, make sure to implement a train and test setup that enables a true out-of-sample prediction test.
+
+### Within-site prediction Davos
+
+```{r}
+
+mod_lm <- lm(GPP_NT_VUT_REF ~ ., data = daily_fluxes_train_dav)
+
+# make model evaluation into a function to reuse code
+eval_model <- function(mod, daily_fluxes_train_dav, daily_fluxes_test_dav){
+  
+  # add predictions to the data frames
+  daily_fluxes_train_dav <- daily_fluxes_train_dav |> 
+    drop_na()
+  daily_fluxes_train_dav$fitted <- predict(mod, newdata = daily_fluxes_train_dav)
+  
+  daily_fluxes_test_dav <- daily_fluxes_test_dav |> 
+    drop_na()
+  daily_fluxes_test_dav$fitted <- predict(mod, newdata = daily_fluxes_test_dav)
+  
+  # get metrics tables
+  metrics_train <- daily_fluxes_train_dav |> 
+    yardstick::metrics(GPP_NT_VUT_REF, TA_F)
+  
+  metrics_test <- daily_fluxes_test_dav |> 
+    yardstick::metrics(GPP_NT_VUT_REF, TA_F)
+  
+  # extract values from metrics tables
+  rmse_train <- metrics_train |> 
+    filter(.metric == "rmse") |> 
+    pull(.estimate)
+  rsq_train <- metrics_train |> 
+    filter(.metric == "rsq") |> 
+    pull(.estimate)
+  
+  rmse_test <- metrics_test |> 
+    filter(.metric == "rmse") |> 
+    pull(.estimate)
+  rsq_test <- metrics_test |> 
+    filter(.metric == "rsq") |> 
+    pull(.estimate)
+  
+  # visualise as a scatterplot
+  # adding information of metrics as sub-titles
+  plot_1 <- ggplot(data = daily_fluxes_train_dav, aes(GPP_NT_VUT_REF, TA_F)) +
+    geom_point(alpha = 0.3) +
+    geom_smooth(method = "lm", se = FALSE, color = "red") +
+    geom_abline(slope = 1, intercept = 0, linetype = "dotted") +
+    labs(subtitle = bquote( italic(R)^2 == .(format(rsq_train, digits = 2)) ~~
+                            RMSE == .(format(rmse_train, digits = 3))),
+         title = "Training set") +
+    theme_classic()
+  
+  plot_2 <- ggplot(data = daily_fluxes_test, aes(GPP_NT_VUT_REF, TA_F)) +
+    geom_point(alpha = 0.3) +
+    geom_smooth(method = "lm", se = FALSE, color = "red") +
+    geom_abline(slope = 1, intercept = 0, linetype = "dotted") +
+    labs(subtitle = bquote( italic(R)^2 == .(format(rsq_test, digits = 2)) ~~
+                            RMSE == .(format(rmse_test, digits = 3))),
+         title = "Test set") +
+    theme_classic()
+  
+  out <- cowplot::plot_grid(plot_1, plot_2)
+  
+  return(out)
+}
+daily_fluxes_train <- daily_fluxes_train_dav
+daily_fluxes_test <- daily_fluxes_test_dav
+
+# linear regression model
+eval_model(mod = mod_lm, daily_fluxes_train_dav = daily_fluxes_train, daily_fluxes_test_dav = daily_fluxes_test)
+```
+
+### Within-site prediction Laegern
+
+```{r}
+# make model evaluation into a function to reuse code
+eval_model <- function(mod, daily_fluxes_train_lae, daily_fluxes_test_lae){
+  
+  # add predictions to the data frames
+  daily_fluxes_train_lae <- daily_fluxes_train_lae |> 
+    drop_na()
+  daily_fluxes_train_lae$fitted <- predict(mod, newdata = daily_fluxes_train_lae)
+  
+  daily_fluxes_test_lae <- daily_fluxes_test_dav |> 
+    drop_na()
+  daily_fluxes_test_lae$fitted <- predict(mod, newdata = daily_fluxes_test_lae)
+  
+  # get metrics tables
+  metrics_train <- daily_fluxes_train_lae |> 
+    yardstick::metrics(GPP_NT_VUT_REF, TA_F)
+  
+  metrics_test <- daily_fluxes_test_lae |> 
+    yardstick::metrics(GPP_NT_VUT_REF, TA_F)
+  
+  # extract values from metrics tables
+  rmse_train <- metrics_train |> 
+    filter(.metric == "rmse") |> 
+    pull(.estimate)
+  rsq_train <- metrics_train |> 
+    filter(.metric == "rsq") |> 
+    pull(.estimate)
+  
+  rmse_test <- metrics_test |> 
+    filter(.metric == "rmse") |> 
+    pull(.estimate)
+  rsq_test <- metrics_test |> 
+    filter(.metric == "rsq") |> 
+    pull(.estimate)
+  
+  # visualise as a scatterplot
+  # adding information of metrics as sub-titles
+  plot_1 <- ggplot(data = daily_fluxes_train_lae, aes(GPP_NT_VUT_REF, TA_F)) +
+    geom_point(alpha = 0.3) +
+    geom_smooth(method = "lm", se = FALSE, color = "red") +
+    geom_abline(slope = 1, intercept = 0, linetype = "dotted") +
+    labs(subtitle = bquote( italic(R)^2 == .(format(rsq_train, digits = 2)) ~~
+                            RMSE == .(format(rmse_train, digits = 3))),
+         title = "Training set") +
+    theme_classic()
+  
+  plot_2 <- ggplot(data = daily_fluxes_test_lae, aes(GPP_NT_VUT_REF, TA_F)) +
+    geom_point(alpha = 0.3) +
+    geom_smooth(method = "lm", se = FALSE, color = "red") +
+    geom_abline(slope = 1, intercept = 0, linetype = "dotted") +
+    labs(subtitle = bquote( italic(R)^2 == .(format(rsq_test, digits = 2)) ~~
+                            RMSE == .(format(rmse_test, digits = 3))),
+         title = "Test set") +
+    theme_classic()
+  
+  out <- cowplot::plot_grid(plot_1, plot_2)
+  
+  return(out)
+}
+
+# linear regression model
+eval_model(mod = mod_lm, daily_fluxes_train_lae = daily_fluxes_train, daily_fluxes_test_lae = daily_fluxes_test)
+```
+
+### Across-side prediction (true out-of-sample prediction test)
+
+Train on Davos, test on Laegern
+
+```{r}
+# make model evaluation into a function to reuse code
+eval_model <- function(mod, daily_fluxes_train_dav, daily_fluxes_test_lae){
+  
+  # add predictions to the data frames
+  daily_fluxes_train_dav <- daily_fluxes_train_dav |> 
+    drop_na()
+  daily_fluxes_train_dav$fitted <- predict(mod, newdata = daily_fluxes_train_dav)
+  
+  daily_fluxes_test_lae <- daily_fluxes_test_dav |> 
+    drop_na()
+  daily_fluxes_test_lae$fitted <- predict(mod, newdata = daily_fluxes_test_lae)
+  
+  # get metrics tables
+  metrics_train <- daily_fluxes_train_dav |> 
+    yardstick::metrics(GPP_NT_VUT_REF, TA_F)
+  
+  metrics_test <- daily_fluxes_test_lae |> 
+    yardstick::metrics(GPP_NT_VUT_REF, TA_F)
+  
+  # extract values from metrics tables
+  rmse_train <- metrics_train |> 
+    filter(.metric == "rmse") |> 
+    pull(.estimate)
+  rsq_train <- metrics_train |> 
+    filter(.metric == "rsq") |> 
+    pull(.estimate)
+  
+  rmse_test <- metrics_test |> 
+    filter(.metric == "rmse") |> 
+    pull(.estimate)
+  rsq_test <- metrics_test |> 
+    filter(.metric == "rsq") |> 
+    pull(.estimate)
+  
+  # visualise as a scatterplot
+  # adding information of metrics as sub-titles
+  plot_1 <- ggplot(data = daily_fluxes_train_dav, aes(GPP_NT_VUT_REF, TA_F)) +
+    geom_point(alpha = 0.3) +
+    geom_smooth(method = "lm", se = FALSE, color = "red") +
+    geom_abline(slope = 1, intercept = 0, linetype = "dotted") +
+    labs(subtitle = bquote( italic(R)^2 == .(format(rsq_train, digits = 2)) ~~
+                            RMSE == .(format(rmse_train, digits = 3))),
+         title = "Training set") +
+    theme_classic()
+  
+  plot_2 <- ggplot(data = daily_fluxes_test_lae, aes(GPP_NT_VUT_REF, TA_F)) +
+    geom_point(alpha = 0.3) +
+    geom_smooth(method = "lm", se = FALSE, color = "red") +
+    geom_abline(slope = 1, intercept = 0, linetype = "dotted") +
+    labs(subtitle = bquote( italic(R)^2 == .(format(rsq_test, digits = 2)) ~~
+                            RMSE == .(format(rmse_test, digits = 3))),
+         title = "Test set") +
+    theme_classic()
+  
+  out <- cowplot::plot_grid(plot_1, plot_2)
+  
+  return(out)
+}
+
+# linear regression model
+eval_model(mod = mod_lm, daily_fluxes_train_dav = daily_fluxes_train, daily_fluxes_test_lae = daily_fluxes_test)
+```
+
+### Across-side prediction
+
+Train on Laegern, test on Davos
+
+```{r}
+# make model evaluation into a function to reuse code
+eval_model <- function(mod, daily_fluxes_train_lae, daily_fluxes_test_dav){
+  
+  # add predictions to the data frames
+  daily_fluxes_train_lae <- daily_fluxes_train_lae |> 
+    drop_na()
+  daily_fluxes_train_lae$fitted <- predict(mod, newdata = daily_fluxes_train_lae)
+  
+  daily_fluxes_test_dav <- daily_fluxes_test_dav |> 
+    drop_na()
+  daily_fluxes_test_dav$fitted <- predict(mod, newdata = daily_fluxes_test_dav)
+  
+  # get metrics tables
+  metrics_train <- daily_fluxes_train_lae |> 
+    yardstick::metrics(GPP_NT_VUT_REF, TA_F)
+  
+  metrics_test <- daily_fluxes_test_dav |> 
+    yardstick::metrics(GPP_NT_VUT_REF, TA_F)
+  
+  # extract values from metrics tables
+  rmse_train <- metrics_train |> 
+    filter(.metric == "rmse") |> 
+    pull(.estimate)
+  rsq_train <- metrics_train |> 
+    filter(.metric == "rsq") |> 
+    pull(.estimate)
+  
+  rmse_test <- metrics_test |> 
+    filter(.metric == "rmse") |> 
+    pull(.estimate)
+  rsq_test <- metrics_test |> 
+    filter(.metric == "rsq") |> 
+    pull(.estimate)
+  
+  # visualise as a scatterplot
+  # adding information of metrics as sub-titles
+  plot_1 <- ggplot(data = daily_fluxes_train_lae, aes(GPP_NT_VUT_REF, TA_F)) +
+    geom_point(alpha = 0.3) +
+    geom_smooth(method = "lm", se = FALSE, color = "red") +
+    geom_abline(slope = 1, intercept = 0, linetype = "dotted") +
+    labs(subtitle = bquote( italic(R)^2 == .(format(rsq_train, digits = 2)) ~~
+                            RMSE == .(format(rmse_train, digits = 3))),
+         title = "Training set") +
+    theme_classic()
+  
+  plot_2 <- ggplot(data = daily_fluxes_test_dav, aes(GPP_NT_VUT_REF, TA_F)) +
+    geom_point(alpha = 0.3) +
+    geom_smooth(method = "lm", se = FALSE, color = "red") +
+    geom_abline(slope = 1, intercept = 0, linetype = "dotted") +
+    labs(subtitle = bquote( italic(R)^2 == .(format(rsq_test, digits = 2)) ~~
+                            RMSE == .(format(rmse_test, digits = 3))),
+         title = "Test set") +
+    theme_classic()
+  
+  out <- cowplot::plot_grid(plot_1, plot_2)
+  
+  return(out)
+}
+
+# linear regression model
+eval_model(mod = mod_lm, daily_fluxes_train_lae = daily_fluxes_train, daily_fluxes_test_dav = daily_fluxes_test)
+```
+
+## Train a single model with training data pooled from both sites and predict with this single model on the test data of both sites
+
+```{r}
+# Combine data
+data_combined <- rbind(daily_fluxes_train_dav, daily_fluxes_train_lae)
+```
+
+```{r}
+# Seperate the features
+features <- data_combined[, -ncol(data_combined)]
+target <- data_combined[, ncol(data_combined)]
+
+```
+
+```{r}
+# Split the data into traning and testing set
+set.seed(123)  # for reproducibility
+split <- rsample::initial_split(data_combined, prop = 0.8, strata = "VPD_F")
+data_combined_train <- rsample::training(split)
+data_combined_test <- rsample::testing(split)
+```
+
+```{r}
+# Train a model on the tranining data
+eval_model <- function(mod, data_combined_train, data_combined_test){
+  
+  # add predictions to the data frames
+  data_combined_train <- data_combined_train |> 
+    drop_na()
+  data_combined_train$fitted <- predict(mod, newdata = data_combined_train)
+  
+  data_combined_test <- daily_fluxes_test_dav |> 
+    drop_na()
+  data_combined_test$fitted <- predict(mod, newdata = data_combined_test)
+  
+  # get metrics tables
+  metrics_train <- data_combined_train |> 
+    yardstick::metrics(GPP_NT_VUT_REF, TA_F)
+  
+  metrics_test <- daily_fluxes_test_lae |> 
+    yardstick::metrics(GPP_NT_VUT_REF, TA_F)
+  
+  # extract values from metrics tables
+  rmse_train <- metrics_train |> 
+    filter(.metric == "rmse") |> 
+    pull(.estimate)
+  rsq_train <- metrics_train |> 
+    filter(.metric == "rsq") |> 
+    pull(.estimate)
+  
+  rmse_test <- metrics_test |> 
+    filter(.metric == "rmse") |> 
+    pull(.estimate)
+  rsq_test <- metrics_test |> 
+    filter(.metric == "rsq") |> 
+    pull(.estimate)
+  
+  # visualise as a scatterplot
+  # adding information of metrics as sub-titles
+  plot_1 <- ggplot(data = data_combined_train, aes(GPP_NT_VUT_REF, TA_F)) +
+    geom_point(alpha = 0.3) +
+    geom_smooth(method = "lm", se = FALSE, color = "red") +
+    geom_abline(slope = 1, intercept = 0, linetype = "dotted") +
+    labs(subtitle = bquote( italic(R)^2 == .(format(rsq_train, digits = 2)) ~~
+                            RMSE == .(format(rmse_train, digits = 3))),
+         title = "Training set") +
+    theme_classic()
+  
+  plot_2 <- ggplot(data = data_combined_test, aes(GPP_NT_VUT_REF, TA_F)) +
+    geom_point(alpha = 0.3) +
+    geom_smooth(method = "lm", se = FALSE, color = "red") +
+    geom_abline(slope = 1, intercept = 0, linetype = "dotted") +
+    labs(subtitle = bquote( italic(R)^2 == .(format(rsq_test, digits = 2)) ~~
+                            RMSE == .(format(rmse_test, digits = 3))),
+         title = "Test set") +
+    theme_classic()
+  
+  out <- cowplot::plot_grid(plot_1, plot_2)
+  
+  return(out)
+}
+# linear regression model
+eval_model(mod = mod_lm, data_combined_train = daily_fluxes_train, data_combined_test = daily_fluxes_test)
+```
+
+*How do the model metrics on the test set compare to the true out-of-sample setup above?*
+
+R\^2 is in this and the test set above the same (0.46). Whereas the Root Mean Square Error is here higher. The smaller the RMSE, the better the model's performance, as it indicates that the model is making more accurate predictions. So this model is less accurate than the other and may have overfit to the training data and may not perform well on new data.
+
+*Is it a valid approach to perform model training like this?*
+
+It seems to be valid, but still has some weak points. So here it's only looked at the RMSE, but it could be good to look at other metrics such as MAE too. Additionally the model is fit using a linear regression. That assumes a linear relationship between the predictor variables and the response variable. It would be important to check the data, if this is the case.
+
+# Characteristics of the two sites
+
+Differences between Davos and Laegern in climate, vegetation and altitude:
+
+-   Davos: subalpine coniferous forest
+
+    -   climate: mean annual air temperature 4.3 Celsius, mean annual precipitation 1020mm
+
+    -   vegetation: coniferous forest, evergreen needleleaf forests
+
+    -   altitude: 1639 m a.s.l.
+
+-   Laegern
+
+    -   climate: mean annual air temperature 8.6 Celsius
+
+    -   vegetation: mixed forest
+
+    -   altitude: 689 m a.s.l.
+
+*What could be biases of the out-of-sample predictions?*
+
+Climate: The mean annual air temperature is over 4 Celsius higher in Lagern than in Davos. This difference is also mirrored in the photosynthesis and respiration rates of the vegetation.
+
+Vegetation: Also the vegetation is different. As the Davos site is a subalpine coniferous forest, whereas the Laegern site is a mixed forest. The differences in vegetation could lead to differences in the leaf nitrogen content and in leaf penology.
+
+Altitude: There is a big difference in the altitude and so there is also an difference in the atmospheric pressure, temperature (as explicit above) and humidity.
+
+Each of these three differences can lead to different GPP and TA relationships. So model trained on one site may not generalize well to the other site.
