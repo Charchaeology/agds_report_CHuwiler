@@ -13,20 +13,27 @@ library(tidyverse)
 library(caret)
 library(rsample)
 library(recipes)
+library(dplyr)
 ```
 
-# Comparison of the linear regression and KNN models
+# Report Exercises 9
 
-## 1. Linear Regression Model and KNN
+## Comparison of the linear regression and KNN models
 
-### Putting all together
+### 1. Linear Regression Model and KNN
+
+#### Putting all together
 
 ```{r}
 # Load Functions
 source("./re_ml_01_functions.R")
 
+# Load Data
+daily_fluxes <- read_csv("./data/FLX_CH-Dav_FLUXNET2015_FULLSET_DD_1997-2014_1-3.csv")
+
+
 # Data cleaning
-daily_fluxes |> 
+daily_fluxes |>
   ggplot(aes(x = GPP_NT_VUT_REF, y = ..count..)) + 
   geom_histogram()
 
@@ -66,7 +73,7 @@ eval_model(mod = mod_lm, df_train = daily_fluxes_train, df_test = daily_fluxes_t
 eval_model(mod = mod_knn, df_train = daily_fluxes_train, df_test = daily_fluxes_test)
 ```
 
-## 2. Interpretation
+### 2. Interpretation
 
 1\. Why is the difference between the evaluation on the training and the test set larger for the KNN model than for the linear regression model? The KNN model is more prone to overfitting than the linear regression model.
 
@@ -94,7 +101,7 @@ The bias-variance trade-off describes the trade-off between overfitting and unde
 
 This, because I think that linear regression models are based on a simplifying assumption of a linear relationship between the predictors and the outcome, and therefore they tend to underfit data with complex, nonlinear relationships. On the other hand, KNN models are highly flexible and can fit complex, nonlinear relationships in the data, but they can also be sensitive to noise and outliers, leading to overfitting.
 
-## 3. Visualization of temporal variations of observed and modeled GPP
+### 3. Visualization of temporal variations of observed and modeled GPP
 
 ```{r}
 
@@ -104,7 +111,7 @@ library(ggplot2)
 daily_fluxes <- daily_fluxes[complete.cases(daily_fluxes),]
 
 # Add a column for the date
-daily_fluxes$date <- as.Date(daily_fluxes$TIMESTAMP)
+daily_fluxes$date <- as.Date(daily_fluxes$TIMESTAMP, origin = "1970-01-01")
 
 # Create a dataframe with the observed and modeled GPP values
 df <- data.frame(date = daily_fluxes$date,
@@ -125,7 +132,7 @@ ggplot(df, aes(x = date, y = GPP, color = model)) +
 
 ```
 
-# The role of K
+## The role of K
 
 1.  Based on your understanding of KNN (and without running code), state a hypothesis for how the\
     R\^2 and the MAE evaluated on the test and on the training set would change for\
@@ -135,19 +142,25 @@ ggplot(df, aes(x = date, y = GPP, color = model)) +
 
 As k approaches N, the model becomes simpler, because the prediction for each test instance is based on all training instances. This leads to a high bias but a low variance, as the model fits loosely to the training data but generalizes well to new data. Therefore, the R2 on the training set would decrease, but the R2 on the test set would increase, indicating underfitting. Additionally, the MAE on the training set would increase as the model fits more loosely to the training data, but the MAE on the test set would decrease due to the model's ability to generalize well to new data.\*
 
-2.  Write code that splits the data into a training and a test set and repeats model fitting and evaluation for different values for k. Visualize results, showing model generalisability as a function of model complexity.
+2.  Write code that splits the data into a training and a test set and repeats model fitting and evaluation for different values for k. Visualize results, showing model generalisability as a function of model complexity.Write (some of your) code into a function that takes k as an input and and returns the MAE determined on the test set.
 
 ```{r}
-knn_test1 <- function(k_values, data){
+
+knn_test1 <- function(k_values, daily_fluxes) {
+  
+  # Remove variables with zero variance
+  selected_columns <- daily_fluxes %>%
+    select(-ends_with("_SR"), -ends_with("_QC"), -G_F_MDS_QC, -RECO_SR, -RECO_SR_N)
+  
    # Initialize empty vectors to store results
   train_mae <- rep(NA, length(k_values))
   test_mae <- rep(NA, length(k_values))
   
   # Split the data into a training set and a test set
   set.seed(123)
-  train_index <- createDataPartition(data$GPP_NT_VUT_REF, p = 0.8, list = FALSE)
-  train <- data[train_index, ]
-  test <- data[-train_index, ]
+  train_index <- createDataPartition(selected_columns$GPP_NT_VUT_REF, p = 0.8, list = FALSE)
+  train <- selected_columns[train_index, ]
+  test <- selected_columns[-train_index, ]
 
   # Fit and evaluate the KNN model with the specified value of k
 for (i in seq_along(k_values)) {
@@ -160,6 +173,7 @@ for (i in seq_along(k_values)) {
   )
   train_mae[i] <- mod_knn$results$MAE
   test_mae[i] <- MAE(predict(mod_knn, newdata = test), test$GPP_NT_VUT_REF)
+
 }
   
 # Plot the results
@@ -174,58 +188,18 @@ plot <- ggplot() +
   return(plot)
 }
 
-k_values <- seq(1, 20, by = 1)
-ggplot1 <- knn_test1 (k_values = k_values, data = daily_fluxes)
-ggplot1
+k_values <- c(3, 5, 7)
+
+plot1 <- knn_test1(k_values, daily_fluxes)
+print(plot1)
 
 ```
+# test_mae
 
-Describe how a "region" of overfitting and underfitting can be determined in your visualisation: 
-If both training and testing errors are high and similar for a given value of k, it indicates underfitting. This means that the model is not complex enough to capture the underlying patterns in the data and is therefore not generalizing well to new data.
+Describe how a "region" of overfitting and underfitting can be determined in your visualisation: If both training and testing errors are high and similar for a given value of k, it indicates underfitting. This means that the model is not complex enough to capture the underlying patterns in the data and is therefore not generalizing well to new data.
 
 On the other hand, if the training error is much lower than the testing error, it indicates overfitting. This means that the model is too complex and is fitting to the noise in the training data instead of the underlying patterns, resulting in poor performance on new data.
 
-
-Write (some of your) code into a function that takes k as an input and and returns the MAE determined on the test set.
-
-```{r}
-
-knn_test_mae <- function(k, data) {
-  # Split the data into a training set and a test set
-  set.seed(123)
-  train_index <- createDataPartition(data$GPP_NT_VUT_REF, p = 0.8, list = FALSE)
-  train <- data[train_index, ]
-  test <- data[-train_index, ]
-  
-  # Fit and evaluate the KNN model with the specified value of k
-  mod_knn <- train(
-    GPP_NT_VUT_REF ~ .,
-    data = train,
-    method = "knn",
-    tuneGrid = data.frame(k = k),
-    preProcess = c("center", "scale")
-  )
-  
-  # Return the MAE on the test set
-  test_mae <- MAE(predict(mod_knn, newdata = test), test$GPP_NT_VUT_REF)
-  return(test_mae)
-}
-
-# Define a vector of k values to test
-k_values <- c(5, 10, 15)
-
-# Create an empty vector to store the results
-mae_results <- numeric(length(k_values))
-
-# Loop over the k values and call the function for each one
-for (i in seq_along(k_values)) {
-  mae_results[i] <- knn_test_mae(k = k_values[i], data = daily_fluxes)
-}
-
-# Print the results
-mae_results
-
-```
 
 Is there an "optimal" k in terms of model generalisability? Edit your code to determine an optimal k.
 
