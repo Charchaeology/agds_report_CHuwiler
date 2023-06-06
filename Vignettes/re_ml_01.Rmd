@@ -1,13 +1,15 @@
 ---
-title: "re_ml_01"
+title: "Report_Chapter9"
 author: "Chiara Huwiler"
 output: 
   html_document:
     toc: true
 ---
 
+## AGDS 9.4 Report Exercises
+
 ```{r}
-# Setup
+# Set up
 library(ggplot2)
 library(tidyverse)
 library(caret)
@@ -16,13 +18,11 @@ library(recipes)
 library(dplyr)
 ```
 
-# Report Exercises 9
+# Comparison of the linear regression and KNN models
 
-## Comparison of the linear regression and KNN models
+## 1. Linear Regression Model and KNN
 
-### 1. Linear Regression Model and KNN
-
-#### Putting all together
+### Putting all together
 
 ```{r}
 # Load Functions
@@ -31,14 +31,13 @@ source("./re_ml_01_functions.R")
 # Load Data
 daily_fluxes <- read_csv("./data/FLX_CH-Dav_FLUXNET2015_FULLSET_DD_1997-2014_1-3.csv")
 
-
 # Data cleaning
 daily_fluxes |>
   ggplot(aes(x = GPP_NT_VUT_REF, y = ..count..)) + 
   geom_histogram()
 
 # Data splitting
-set.seed(1982)  # for reproducibility
+set.seed(1982)  
 split <- rsample::initial_split(daily_fluxes, prop = 0.7, strata = "VPD_F")
 daily_fluxes_train <- rsample::training(split)
 daily_fluxes_test <- rsample::testing(split)
@@ -73,35 +72,23 @@ eval_model(mod = mod_lm, df_train = daily_fluxes_train, df_test = daily_fluxes_t
 eval_model(mod = mod_knn, df_train = daily_fluxes_train, df_test = daily_fluxes_test)
 ```
 
-### 2. Interpretation
+## 2. Interpretation
 
-1\. Why is the difference between the evaluation on the training and the test set larger for the KNN model than for the linear regression model? The KNN model is more prone to overfitting than the linear regression model.
+*1. Why is the difference between the evaluation on the training and the test set larger for the KNN model than for the linear regression model?*
 
-KNN is a non-parametric method, which means it does not assume a particular functional form of the relationship between the predictor variables and the response variable. Instead, KNN learns the structure of the data by memorizing the training set. This can lead to overfitting if the KNN model becomes too complex and learns noise in the data instead of the underlying patterns.
+The linear regression model learns the overall relationship between the used variables and can make so decent predictions on new data. Whereas, the KNN model is not looking at the overall relationship, but at similar examples in the training data. This can lead to less accurate predictions on new data and here to a bigger difference between the evaluation on the training and the test set.
 
-In contrast, linear regression is a parametric method that assumes a linear relationship between the predictor variables and the response variable. It estimates the parameters of the linear model that best fit the data, which can reduce the risk of overfitting.
+*2. Why is the does the evaluation on the test set indicate a better model performance of the KNN model than the linear regression model?*
 
-Therefore, when the KNN model is applied to the test set, it may not perform as well as on the training set since it may have overfit to the training data. This leads to a larger difference in evaluation metrics between the training and test sets.
+This indicates that the KNN model is more accurate in predicting new data. For example because the KNN captures better complex patterns and non-linear relationships in the data, then the linear regression model. Furthermore it considers local patterns and can handle sparse data more effectively.
 
-2\. Why is the does the evaluation on the test set indicate a better model performance of the KNN model than the linear regression model?
+*3.* *How would you position the KNN and the linear regression model along the spectrum of the bias-variance trade-off?*
 
--   Non-linearity: The relationship between the predictors and the response variable might not be linear, which could lead to a poor performance of the linear regression model. KNN, on the other hand, does not make any assumptions about the linearity of the relationship and can model non-linear relationships more effectively.
+-   Linear Regression: have lower variance but can have higher bias if the relationship is not linear. They work well for linear patterns but can struggle with complex relationships.
 
--   Interactions: The predictors might interact with each other in a complex way that the linear regression model cannot capture. KNN can capture interactions between predictors by using distance-based measures.
+-   KNN: have lower bias but higher variance. They can handle complex patterns but may overfit and be sensitive to specific training examples.
 
--   Robustness: KNN is a non-parametric method and does not assume any specific distribution of the data. It can handle outliers and skewed data better than linear regression, which assumes a normal distribution of the data.
-
--   Sample size: The sample size might be too small for linear regression to perform well, especially if the number of predictors is high relative to the number of observations. KNN does not require a large sample size to perform well and can handle high-dimensional data more effectively.
-
--   Model selection: The linear regression model was fit using only the Box-Cox transformation and centering and scaling of the predictors, whereas KNN was fit using the default parameters of k=8. It is possible that a different set of pre-processing steps or a different value of k for KNN could lead to a better performance of the linear regression model.
-
-3\. How would you position the KNN and the linear regression model along the spectrum of the bias-variance trade-off?
-
-The bias-variance trade-off describes the trade-off between overfitting and underfitting. Models with high bias tend to underfit the data, while models with high variance tend to overfit the data. I think the linear regression models tend to have high bias and low variance, while KNN models have low bias and high variance.
-
-This, because I think that linear regression models are based on a simplifying assumption of a linear relationship between the predictors and the outcome, and therefore they tend to underfit data with complex, nonlinear relationships. On the other hand, KNN models are highly flexible and can fit complex, nonlinear relationships in the data, but they can also be sensitive to noise and outliers, leading to overfitting.
-
-### 3. Visualization of temporal variations of observed and modeled GPP
+## 3. Visualization of temporal variations of observed and modeled GPP
 
 ```{r}
 
@@ -132,17 +119,17 @@ ggplot(df, aes(x = date, y = GPP, color = model)) +
 
 ```
 
-## The role of K
+# The role of K
 
-1.  Based on your understanding of KNN (and without running code), state a hypothesis for how the\
-    R\^2 and the MAE evaluated on the test and on the training set would change for\
-    k approaching 1 and for k approaching N (the number of observations in the data). Explain your hypothesis, referring to the bias-variance trade-off.
+## 1. Hypothesis
 
-\*As k approaches 1, the model becomes more complex, because the prediction for each test instance is based solely on the closest training instance. This leads to a low bias but a high variance, as the model fits closely to the training data but may not generalize well to new data. Therefore, the R2 on the training set would increase, but the R2 on the test set would decrease, indicating overfitting. Additionally, the MAE on the training set would decrease as the model fits more closely to the training data, but the MAE on the test set would increase due to the model's inability to generalize well to new data.
+*Based on your understanding of KNN (and without running code), state a hypothesis for how the R\^2 and the MAE evaluated on the test and on the training set would change for k approaching 1 and for k approaching N (the number of observations in the data). Explain your hypothesis, referring to the bias-variance trade-off.*
 
-As k approaches N, the model becomes simpler, because the prediction for each test instance is based on all training instances. This leads to a high bias but a low variance, as the model fits loosely to the training data but generalizes well to new data. Therefore, the R2 on the training set would decrease, but the R2 on the test set would increase, indicating underfitting. Additionally, the MAE on the training set would increase as the model fits more loosely to the training data, but the MAE on the test set would decrease due to the model's ability to generalize well to new data.\*
+Hypothesis: As k approaches 1, the model becomes more flexible, fits the training data closely, and may overfit. This leads to higher R\^2 and lower MAE on the training set. As k approaches N, the model becomes less flexible, averages predictions, and may oversimplify. This results in lower R\^2 and higher MAE on the training set.
 
-2.  Write code that splits the data into a training and a test set and repeats model fitting and evaluation for different values for k. Visualize results, showing model generalisability as a function of model complexity.Write (some of your) code into a function that takes k as an input and and returns the MAE determined on the test set.
+## 2. Code
+
+Task: Write code that splits the data into a training and a test set and repeats model fitting and evaluation for different values for k. Visualize results, showing model generalisability as a function of model complexity.
 
 ```{r}
 
@@ -152,7 +139,9 @@ knn_test1 <- function(k_values, daily_fluxes) {
   selected_columns <- daily_fluxes %>%
     select(-ends_with("_SR"), -ends_with("_QC"), -G_F_MDS_QC, -RECO_SR, -RECO_SR_N)
   
-   # Initialize empty vectors to store results
+  selected_columns <- selected_columns[complete.cases(selected_columns), ]
+  
+  # Initialize empty vectors to store results
   train_mae <- rep(NA, length(k_values))
   test_mae <- rep(NA, length(k_values))
   
@@ -161,66 +150,79 @@ knn_test1 <- function(k_values, daily_fluxes) {
   train_index <- createDataPartition(selected_columns$GPP_NT_VUT_REF, p = 0.8, list = FALSE)
   train <- selected_columns[train_index, ]
   test <- selected_columns[-train_index, ]
-
-  # Fit and evaluate the KNN model with the specified value of k
-for (i in seq_along(k_values)) {
-  mod_knn <- train(
-    GPP_NT_VUT_REF ~ .,
-    data = train,
-    method = "knn",
-    tuneGrid = data.frame(k = k_values[i]),
-    preProcess = c("center", "scale")
-  )
-  train_mae[i] <- mod_knn$results$MAE
-  test_mae[i] <- MAE(predict(mod_knn, newdata = test), test$GPP_NT_VUT_REF)
-
-}
   
-# Plot the results
-plot <- ggplot() +
-  geom_line(aes(x = k_values, y = train_mae), color = "blue", size = 1.5) +
-  geom_line(aes(x = k_values, y = test_mae), color = "red", size = 1.5) +
-  scale_x_continuous(name = "k") +
-  scale_y_continuous(name = "MAE") +
-  ggtitle("Model generalizability as a function of model complexity") +
-  theme_classic()
+  # Convert train and test to data frames
+  train <- as.data.frame(train)
+  test <- as.data.frame(test)
+  
+  # Convert target variable to numeric
+  train$GPP_NT_VUT_REF <- as.numeric(train$GPP_NT_VUT_REF)
+  
+  # Fit and evaluate the KNN model with the specified value of k
+  for (i in seq_along(k_values)) {
+    mod_knn <- tryCatch(
+      train(
+        GPP_NT_VUT_REF ~ .,
+        data = train,
+        method = "knn",
+        trControl = trainControl(method = "none"),
+        tuneGrid = data.frame(k = k_values[i]),
+        preProcess = NULL
+      ),
+      error = function(e) NULL  # Return NULL if an error occurs
+    )
+    
+    if (!is.null(mod_knn)) {
+      train_pred <- predict(mod_knn, newdata = train)
+      test_pred <- predict(mod_knn, newdata = test)
+      train_mae[i] <- mean(abs(train_pred - train$GPP_NT_VUT_REF))
+      test_mae[i] <- mean(abs(test_pred - test$GPP_NT_VUT_REF))
+    }
+  }
+  
+   # Find the index of the k value with the lowest test MAE
+  best_index <- which.min(test_mae)
+  
+  # Plot the results
+  plot <- ggplot() +
+    geom_line(aes(x = k_values, y = train_mae), color = "blue", size = 1.5) +
+    geom_line(aes(x = k_values, y = test_mae), color = "red", size = 1.5) +
+    scale_x_continuous(name = "k") +
+    scale_y_continuous(name = "MAE") +
+    ggtitle("Model generalizability as a function of model complexity") +
+    theme_classic()
+  
+  # Return the plot and test MAE
+  return(list(plot = plot, test_mae = test_mae, optimal_k = k_values[best_index]))
 
-  return(plot)
 }
 
 k_values <- c(3, 5, 7)
 
-plot1 <- knn_test1(k_values, daily_fluxes)
-print(plot1)
+result <- knn_test1(k_values, daily_fluxes)
+print(result$plot)
 
 ```
-# test_mae
 
-Describe how a "region" of overfitting and underfitting can be determined in your visualisation: If both training and testing errors are high and similar for a given value of k, it indicates underfitting. This means that the model is not complex enough to capture the underlying patterns in the data and is therefore not generalizing well to new data.
-
-On the other hand, if the training error is much lower than the testing error, it indicates overfitting. This means that the model is too complex and is fitting to the noise in the training data instead of the underlying patterns, resulting in poor performance on new data.
-
-
-Is there an "optimal" k in terms of model generalisability? Edit your code to determine an optimal k.
+Task: Write (some of your) code into a function that takes k as an input and and returns the MAE determined on the test set.
 
 ```{r}
-# Define a vector of k values to test
-k_values <- c(5, 10, 15)
+# implemented in the code above
+print(result$test_mae)
+```
 
-# Create an empty vector to store the results
-mae_results <- numeric(length(k_values))
+*Describe how a "region" of overfitting and underfitting can be determined in your visualisation*
 
-# Loop over the k values and call the function for each one
-for (i in seq_along(k_values)) {
-  mae_results[i] <- knn_test_mae(k = k_values[i], data = daily_fluxes)
-}
+Overfitting can be seen when the blue line (training MAE) descreases while the the red line (test MAE) increases or stays high. Whereas underfitting could be identified through a high training and test MAE and if there are similaritys across different values of k. Optimal complexity can be seen where the test MAE reaches its lowest value. The plot shows that this is a k value of 3 and as also can be seen below that the "optimal" k is 3. This k value tells where the model captures the underlying patterns in the data without over- or underfitting.
 
-# Determine the optimal k value
-optimal_k <- k_values[which.min(mae_results)]
+## 3. Optimal k?
 
-# Print the results
-cat("Mean MAE for each k value:", mae_results, "\n")
-cat("Optimal k value:", optimal_k, "\n")
+Task: Is there an "optimal" k in terms of model generalisability? Edit your code to determine an optimal k.
 
+The optimal k value is:
+
+```{r}
+# implemented in the code above
+print(paste("Optimal k:", result$optimal_k))
 
 ```

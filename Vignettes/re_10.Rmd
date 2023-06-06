@@ -1,9 +1,11 @@
 ---
-title: "re_10"
+title: "Report_Chapter10"
 author: "Chiara Huwiler"
 date: "2023-05-08"
 output: html_document
 ---
+
+## AGDS 10.4 Report Exercises
 
 ```{r}
 # Setup
@@ -13,33 +15,35 @@ library(lattice)
 library(dplyr)
 ```
 
-# Report Exercises 10
+# How well is a model generalisable to a new site?
 
-## How well is a model generalisable to a new site?
+## Preparing Data
 
-### Setting aside 20% of the data of each site for testing.
+Task: Set aside 20% of the data of each site (Davos and Laegern) for testing.
 
-Data from Davos
+### Data from Davos
 
 ```{r}
+# Load Data
 daily_fluxes_davos <- readr::read_csv("./data/FLX_CH-Dav_FLUXNET2015_FULLSET_DD_1997-2014_1-3.csv") |>  
   
-  # select only the variables we are interested in
+  # select only the variables of interested
   dplyr::select(TIMESTAMP,
                 GPP_NT_VUT_REF,    # the target
                 ends_with("_QC"),  # quality control info
                 ends_with("_F"),   # includes all all meteorological covariates
-                -contains("JSB")   # weird useless variable
+                -contains("JSB")   # useless variable
                 ) |>
 
-  # convert to a nice date object
+  # convert to a more sutable date object
   dplyr::mutate(TIMESTAMP = ymd(TIMESTAMP)) |>
 
   # set all -9999 to NA
   mutate(across(where(is.numeric), ~na_if(., -9999))) |> 
 
   # retain only data based on >=80% good-quality measurements
-  # overwrite bad data with NA (not dropping rows)
+  
+  # overwrite bad data with NA (without dropping rows)
   dplyr::mutate(GPP_NT_VUT_REF = ifelse(NEE_VUT_REF_QC < 0.8, NA, GPP_NT_VUT_REF),
                 TA_F           = ifelse(TA_F_QC        < 0.8, NA, TA_F),
                 SW_IN_F        = ifelse(SW_IN_F_QC     < 0.8, NA, SW_IN_F),
@@ -53,14 +57,14 @@ daily_fluxes_davos <- readr::read_csv("./data/FLX_CH-Dav_FLUXNET2015_FULLSET_DD_
   dplyr::select(-ends_with("_QC"))
 
 # Data splitting
-set.seed(123)  # for reproducibility
+set.seed(123) 
 split <- rsample::initial_split(daily_fluxes_davos, prop = 0.8, strata = "VPD_F") # 80% for training, 20% for testing
 
 daily_fluxes_train_dav <- rsample::training(split)
 daily_fluxes_test_dav <- rsample::testing(split)
 ```
 
-Data Laegern
+### Data Laegern
 
 ```{r}
 # Read in data for Laegern site
@@ -96,14 +100,14 @@ daily_fluxes_train_lae <- rsample::training(split)
 daily_fluxes_test_lae <- rsample::testing(split)
 ```
 
-# Train an model from one site and predict to another site.
+## Prediction
 
-Compare within-site predictions and across-site predictions on the test set for both sites, considering different metrics. For across-site predictions, make sure to implement a train and test setup that enables a true out-of-sample prediction test.
+Taks: Compare within-site predictions and across-site predictions on the test set for both sites, considering different metrics. For across-site predictions, make sure to implement a train and test setup that enables a true out-of-sample prediction test.
 
 ### Within-site prediction Davos
 
 ```{r}
-
+# Fit the linear regression model
 mod_lm <- lm(GPP_NT_VUT_REF ~ ., data = daily_fluxes_train_dav)
 
 # make model evaluation into a function to reuse code
@@ -141,7 +145,8 @@ eval_model <- function(mod, daily_fluxes_train_dav, daily_fluxes_test_dav){
     pull(.estimate)
   
   # visualise as a scatterplot
-  # adding information of metrics as sub-titles
+  
+  # add information of metrics as sub-titles
   plot_1 <- ggplot(data = daily_fluxes_train_dav, aes(GPP_NT_VUT_REF, TA_F)) +
     geom_point(alpha = 0.3) +
     geom_smooth(method = "lm", se = FALSE, color = "red") +
@@ -167,7 +172,7 @@ eval_model <- function(mod, daily_fluxes_train_dav, daily_fluxes_test_dav){
 daily_fluxes_train <- daily_fluxes_train_dav
 daily_fluxes_test <- daily_fluxes_test_dav
 
-# linear regression model
+# evaluate linear regression model
 eval_model(mod = mod_lm, daily_fluxes_train_dav = daily_fluxes_train, daily_fluxes_test_dav = daily_fluxes_test)
 ```
 
@@ -209,7 +214,8 @@ eval_model <- function(mod, daily_fluxes_train_lae, daily_fluxes_test_lae){
     pull(.estimate)
   
   # visualise as a scatterplot
-  # adding information of metrics as sub-titles
+  
+  # add information of metrics as sub-titles
   plot_1 <- ggplot(data = daily_fluxes_train_lae, aes(GPP_NT_VUT_REF, TA_F)) +
     geom_point(alpha = 0.3) +
     geom_smooth(method = "lm", se = FALSE, color = "red") +
@@ -233,7 +239,7 @@ eval_model <- function(mod, daily_fluxes_train_lae, daily_fluxes_test_lae){
   return(out)
 }
 
-# linear regression model
+# evaluate linear regression model
 eval_model(mod = mod_lm, daily_fluxes_train_lae = daily_fluxes_train, daily_fluxes_test_lae = daily_fluxes_test)
 ```
 
@@ -277,7 +283,8 @@ eval_model <- function(mod, daily_fluxes_train_dav, daily_fluxes_test_lae){
     pull(.estimate)
   
   # visualise as a scatterplot
-  # adding information of metrics as sub-titles
+  
+  # add information of metrics as sub-titles
   plot_1 <- ggplot(data = daily_fluxes_train_dav, aes(GPP_NT_VUT_REF, TA_F)) +
     geom_point(alpha = 0.3) +
     geom_smooth(method = "lm", se = FALSE, color = "red") +
@@ -301,7 +308,7 @@ eval_model <- function(mod, daily_fluxes_train_dav, daily_fluxes_test_lae){
   return(out)
 }
 
-# linear regression model
+# evaluate linear regression model
 eval_model(mod = mod_lm, daily_fluxes_train_dav = daily_fluxes_train, daily_fluxes_test_lae = daily_fluxes_test)
 ```
 
@@ -345,7 +352,8 @@ eval_model <- function(mod, daily_fluxes_train_lae, daily_fluxes_test_dav){
     pull(.estimate)
   
   # visualise as a scatterplot
-  # adding information of metrics as sub-titles
+  
+  # add information of metrics as sub-titles
   plot_1 <- ggplot(data = daily_fluxes_train_lae, aes(GPP_NT_VUT_REF, TA_F)) +
     geom_point(alpha = 0.3) +
     geom_smooth(method = "lm", se = FALSE, color = "red") +
@@ -369,11 +377,13 @@ eval_model <- function(mod, daily_fluxes_train_lae, daily_fluxes_test_dav){
   return(out)
 }
 
-# linear regression model
+# evaluate linear regression model
 eval_model(mod = mod_lm, daily_fluxes_train_lae = daily_fluxes_train, daily_fluxes_test_dav = daily_fluxes_test)
 ```
 
-## Train a single model with training data pooled from both sites and predict with this single model on the test data of both sites
+## Train a single model
+
+Task: Train a single model with training data pooled from both sites and predict with this single model on the test data of both sites
 
 ```{r}
 # Combine data
@@ -431,7 +441,8 @@ eval_model <- function(mod, data_combined_train, data_combined_test){
     pull(.estimate)
   
   # visualise as a scatterplot
-  # adding information of metrics as sub-titles
+  
+  # add information of metrics as sub-titles
   plot_1 <- ggplot(data = data_combined_train, aes(GPP_NT_VUT_REF, TA_F)) +
     geom_point(alpha = 0.3) +
     geom_smooth(method = "lm", se = FALSE, color = "red") +
@@ -454,21 +465,21 @@ eval_model <- function(mod, data_combined_train, data_combined_test){
   
   return(out)
 }
-# linear regression model
+# evaluate linear regression model
 eval_model(mod = mod_lm, data_combined_train = daily_fluxes_train, data_combined_test = daily_fluxes_test)
 ```
 
 *How do the model metrics on the test set compare to the true out-of-sample setup above?*
 
-R\^2 is in this and the test set above the same (0.46). Whereas the Root Mean Square Error is here higher. The smaller the RMSE, the better the model's performance, as it indicates that the model is making more accurate predictions. So this model is less accurate than the other and may have overfit to the training data and may not perform well on new data.
+R\^2 is in this and the test set above the same (0.46). Whereas the Root Mean Square Error is here higher. The smaller the RMSE, the better the model's performance, as it indicates that the model is making more accurate predictions. So this model is less accurate than the other and may is overfitting to the training data and may not perform well on new data.
 
 *Is it a valid approach to perform model training like this?*
 
-It seems to be valid, but still has some weak points. So here it's only looked at the RMSE, but it could be good to look at other metrics such as MAE too. Additionally the model is fit using a linear regression. That assumes a linear relationship between the predictor variables and the response variable. It would be important to check the data, if this is the case.
+It seems to be valid, but still has some weak points. So here it's only been looked at the RMSE, but it could be good to look at other metrics such as MAE, too. Additionally the model is fit using a linear regression. That assumes a linear relationship between the predictor variables and the response variable. It would be important to check the data, if this is the case.
 
 # Characteristics of the two sites
 
-Differences between Davos and Laegern in climate, vegetation and altitude:
+Task: Get information about the characteristics of the two sites. What are the differences in terms of climate, vegetation, altitude, etc. between the Davos and Laegern sites?
 
 -   Davos: subalpine coniferous forest
 

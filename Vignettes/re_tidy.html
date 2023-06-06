@@ -357,7 +357,9 @@ display: none;
 </div>
 
 
-<pre class="r"><code># Setting up
+<div id="agds-3.5-report-exercises" class="section level2">
+<h2>AGDS 3.5 Report Exercises</h2>
+<pre class="r"><code># Set up
 library(tidyverse)</code></pre>
 <pre><code>## ── Attaching core tidyverse packages ──────────────────────── tidyverse 2.0.0 ──
 ## ✔ dplyr     1.1.0     ✔ readr     2.1.4
@@ -369,16 +371,15 @@ library(tidyverse)</code></pre>
 ## ✖ dplyr::filter() masks stats::filter()
 ## ✖ dplyr::lag()    masks stats::lag()
 ## ℹ Use the ]8;;http://conflicted.r-lib.org/conflicted package]8;; to force all conflicts to become errors</code></pre>
-<div id="agds-3.5-report-exercises" class="section level2">
-<h2>AGDS 3.5 Report Exercises</h2>
-<p>This document includes the solutions to all of the Chapter 3
-Exercises from the Applied Geodata Science course.</p>
+</div>
+<div id="data-cleaning" class="section level1">
+<h1>Data Cleaning</h1>
 <p>This exercises are based on the following database: Groenigen, Kees
 Jan van, Xuan Qi, Craig W. Osenberg, Yiqi Luo, and Bruce A. Hungate.
 “Faster Decomposition Under Increased Atmospheric CO2 Limits Soil Carbon
 Storage.” Science 344, no. 6183 (May 2, 2014): 508–9. <a href="https://doi.org/10.1126/science.1249534" class="uri">https://doi.org/10.1126/science.1249534</a>.</p>
-<p>The data is imported as a tibble</p>
-<pre class="r"><code># Reading and defining the dataframe 
+<p>The data is imported as a tibble.</p>
+<pre class="r"><code># Read and define the dataframe 
 df_full &lt;- readr::read_csv2(&quot;./df_full.csv&quot;, col_names = TRUE)</code></pre>
 <pre><code>## ℹ Using &quot;&#39;,&#39;&quot; as decimal and &quot;&#39;.&#39;&quot; as grouping mark. Use `read_delim()` for more control.</code></pre>
 <pre><code>## Rows: 234 Columns: 10
@@ -390,20 +391,19 @@ df_full &lt;- readr::read_csv2(&quot;./df_full.csv&quot;, col_names = TRUE)</cod
 ## 
 ## ℹ Use `spec()` to retrieve the full column specification for this data.
 ## ℹ Specify the column types or set `show_col_types = FALSE` to quiet this message.</code></pre>
-</div>
-<div id="excercise-2" class="section level1">
-<h1>Excercise 2</h1>
+<div id="exercise-2" class="section level2">
+<h2>Exercise 2</h2>
 <p>Data aggregation per experiment and calculation of the log-response
-ratio</p>
+ratio.</p>
 <p>RR = ln (xelevated/xambient)</p>
-<p>For that calculate for each Experiment the means for each Column.</p>
-<pre class="r"><code># Calculation the mean values
+<p>Task: Calculate for each Experiment the means for each Column</p>
+<pre class="r"><code># Calculate the mean values
 df_exp &lt;- df_full |&gt;
   group_by(Experiment) |&gt;
   summarise (ambient_mean = mean(ambient_mean),
             elevate_mean = mean(elevate_mean))
 
-# Displaying the result
+# Display the result
 knitr::kable(df_exp)</code></pre>
 <table>
 <thead>
@@ -701,14 +701,13 @@ knitr::kable(df_exp)</code></pre>
 </tr>
 </tbody>
 </table>
-<p>Calculate the log response ratio of every Experiment from the new
-Database mean_eachexperiment</p>
-<pre class="r"><code># Calculation the log response ratio
+<p>Task: Calculate the log response ratio within each Experiment.</p>
+<pre class="r"><code># Calculate the log response ratio
 df_lrr &lt;- df_exp |&gt;
   reframe ( LRR &lt;- log(elevate_mean/ambient_mean))
 
 
-# Displaying the result
+# Display the result
 knitr::kable(df_lrr)</code></pre>
 <table>
 <thead>
@@ -891,24 +890,24 @@ knitr::kable(df_lrr)</code></pre>
 </tbody>
 </table>
 </div>
-<div id="exercise-3" class="section level1">
-<h1>Exercise 3</h1>
-<p>Data aggregation across all experiments for different years (early,
-mid- and late phase); Calculation of the log-response ratio for each
-phase.</p>
+<div id="exercise-3" class="section level2">
+<h2>Exercise 3</h2>
+<p>Task: Data aggregation across all experiments for different years
+(early, mid- and late phase) and Calculation of the log-response ratio
+for each phase.</p>
 <p><strong>Early Phase</strong></p>
-<pre class="r"><code># Defining the time period
+<pre class="r"><code># Define the time period
 early_phase &lt;- df_full [df_full[,&quot;Time&quot;] &gt;= 0 &amp; df_full[,&quot;Time&quot;]&lt;= 3,] |&gt;
 mutate(Time = as.factor(Time))  |&gt;
 
-# Calculating means of ambient_mean and elevate_mean
+# Calculate means of ambient_mean and elevate_mean
 summarise(ambient_mean = mean(ambient_mean),
             elevate_mean = mean(elevate_mean)) |&gt;
 
-# Calculating log-response ratio
+# Calculate log-response ratio
 mutate (ep_mean &lt;- log(elevate_mean/ambient_mean))
 
-# Displaying the result
+# Display the result
 knitr::kable(early_phase)</code></pre>
 <table>
 <thead>
@@ -927,18 +926,18 @@ knitr::kable(early_phase)</code></pre>
 </tbody>
 </table>
 <p><strong>Midphase</strong></p>
-<pre class="r"><code># Defining the time period
+<pre class="r"><code># Define the time period
 midphase &lt;- df_full [df_full[,&quot;Time&quot;] &gt;= 3 &amp; df_full[,&quot;Time&quot;]&lt;= 6,] |&gt;
 mutate(Time = as.factor(Time))  |&gt;
 
-# Calculating means of ambient_mean and elevate_mean
+# Calculate means of ambient_mean and elevate_mean
 summarise(ambient_mean = mean(ambient_mean),
             elevate_mean = mean(elevate_mean)) |&gt;
 
-# Calculating log-response ratio
+# Calculate log-response ratio
 mutate (ep_mean &lt;- log(elevate_mean/ambient_mean))
 
-# Displaying the result
+# Display the result
 knitr::kable(midphase)</code></pre>
 <table>
 <thead>
@@ -957,18 +956,18 @@ knitr::kable(midphase)</code></pre>
 </tbody>
 </table>
 <p><strong>Late phase</strong></p>
-<pre class="r"><code># Defining the time period
+<pre class="r"><code># Define the time period
 late_phase &lt;- df_full [df_full[,&quot;Time&quot;] &gt;= 6,] |&gt;
 mutate(Time = as.factor(Time))  |&gt;
 
-# Calculating means of ambient_mean and elevate_mean
+# Calculate means of ambient_mean and elevate_mean
 summarise(ambient_mean = mean(ambient_mean),
             elevate_mean = mean(elevate_mean)) |&gt;
 
-# Calculating log-response ratio
+# Calculate log-response ratio
 mutate (ep_mean &lt;- log(elevate_mean/ambient_mean))
 
-# Displaying the result
+# Display the result
 knitr::kable(late_phase)</code></pre>
 <table>
 <thead>
@@ -986,6 +985,7 @@ knitr::kable(late_phase)</code></pre>
 </tr>
 </tbody>
 </table>
+</div>
 </div>
 
 

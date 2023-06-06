@@ -1,0 +1,103 @@
+---
+title: "Report 8"
+author: "Chiara Huwiler"
+date: "2023-05-26"
+output: html_document
+---
+```{r}
+# Step 1: Prepare your data
+data <- readr::read_csv("vignettes/data/df_for_stepwise_regression.csv")
+
+# Step 2: Load your data
+
+# Step 3: Initialize variables
+best_r2 <- -Inf
+best_model <- NULL
+best_aic <- Inf
+selected_predictors <- c()
+
+# Step 4: Perform forward regression
+while (length(selected_predictors) < ncol(data) - 1) {  # until all predictors are selected
+  remaining_predictors <- setdiff(names(data)[-ncol(data)], selected_predictors)
+  candidate_models <- lapply(remaining_predictors, function(predictor) {
+    predictors <- c(selected_predictors, predictor)
+    X <- data[, predictors, drop = FALSE]
+    y <- data[[names(data)[ncol(data)]]]
+    model <- lm(y ~ ., data = cbind(X, y))
+    list(model = model, predictors = predictors)
+  })
+  
+  # Step 5: Select the best fitting model
+  candidate_r2 <- sapply(candidate_models, function(candidate) {
+    summary(candidate$model)$r.squared
+  })
+  best_candidate_index <- which.max(candidate_r2)
+  best_candidate <- candidate_models[[best_candidate_index]]
+  
+  # Step 6: Update variables for the best model
+  if (candidate_r2[best_candidate_index] > best_r2) {
+    best_r2 <- candidate_r2[best_candidate_index]
+    best_model <- best_candidate$model
+    selected_predictors <- best_candidate$predictors
+  } else {
+    break  # Stop if no improvement in R^2
+  }
+}
+
+# Step 7: Compute AIC for the best fitting model
+n <- nrow(data)
+p <- length(selected_predictors)
+aic <- AIC(best_model)
+
+cat("Selected predictors:", selected_predictors, "\n")
+cat("Best R^2:", best_r2, "\n")
+cat("AIC for best model:", aic, "\n")
+```
+
+
+The R-squared (R^2) value represents the proportion of the variance in the target variable (dependent variable) that can be explained by the predictors (independent variables) in the model.
+
+The Akaike Information Criterion (AIC) is a measure that balances the goodness of fit of the model with its complexity, penalizing models with a higher number of predictors.
+The AIC value represents the relative quality of the model, with lower values indicating a better trade-off between goodness of fit and model complexity.
+
+```{r}
+# Looping
+# define a list of datasets or subsets of the same dataset
+list_of_datasets <- list(df_regression)
+
+# loop over the list of datasets
+for (i in seq_along(list_of_datasets)) {
+  
+  # perform the regression analysis and save the results in a list
+  storage_1 <- list()
+  for (j in 1:length(names(list_of_datasets[[i]]))[-16]) {
+    predictor <- names(list_of_datasets[[i]])[j]
+    storage_1[[predictor]] <- lm(GPP_NT_VUT_REF ~ get(predictor), data = list_of_datasets[[i]])
+  }
+  
+  # calculate the R2 values and save them in a vector
+  r2values <- numeric(length(storage_1))
+  for (k in 1:length(storage_1)) {
+    r2values[k] <- summary(storage_1[[k]])$r.squared
+  }
+  
+  # get the index of the best model based on R2 value
+  max_index <- which.max(r2values)
+  
+  # fit the best model and calculate AIC
+  best_predictor <- names(list_of_datasets[[i]])[max_index]
+  best_model <- lm(GPP_NT_VUT_REF ~ get(best_predictor), data = list_of_datasets[[i]])
+  AIC_value <- AIC(best_model)
+  
+  # plot the best model
+  plot(best_model)
+  
+  # print the best predictor and its corresponding R-squared value and AIC
+  cat("Best predictor candidate:", best_predictor, "\n")
+  cat("Best R-squared value:", r2values[max_index], "\n")
+  cat("AIC for best model:", AIC_value, "\n")
+}
+
+
+```
+
