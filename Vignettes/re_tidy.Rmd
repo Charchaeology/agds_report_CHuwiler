@@ -20,7 +20,7 @@ The data is imported as a tibble.
 
 ```{r}
 # Read and define the dataframe 
-df_full <- readr::read_csv2("./df_full.csv", col_names = TRUE)
+df_full <- readr::read_csv2("./data/df_full.csv", col_names = TRUE)
 
 ```
 
